@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+    <!-- PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="网球训练">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#2563eb">
+
+    <title>🎾 网球训练日历</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #f0f4f8;
+            color: #1e293b;
+            min-height: 100vh;
+            /* Safe area for iPhone notch / home indicator */
+            padding: calc(36px + env(safe-area-inset-top)) 20px
+                     calc(110px + env(safe-area-inset-bottom))
+                     20px;
+        }
+
+        /* ── Install banner ── */
+        #installBanner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            background: #eff6ff;
+            border: 1.5px solid #bfdbfe;
+            border-radius: 14px;
+            padding: 12px 16px;
+            margin: 0 auto 22px;
+            max-width: 600px;
+            font-size: 0.82rem;
+            color: #1d4ed8;
+            line-height: 1.5;
+        }
+        #installBanner.visible { display: flex; }
+        #installBanner p { flex: 1; }
+        #installBanner strong { display: block; margin-bottom: 2px; font-size: 0.88rem; }
+        .banner-close {
+            background: none; border: none; color: #93c5fd; font-size: 1.1rem;
+            cursor: pointer; flex-shrink: 0; padding: 2px 4px; line-height: 1;
+        }
+
+        header { text-align: center; margin-bottom: 28px; }
+        header h1 { font-size: 2rem; font-weight: 800; color: #0f172a; margin-bottom: 6px; letter-spacing: -0.5px; }
+        header p  { font-size: 0.88rem; color: #64748b; }
+
+        /* Legend */
+        .legend { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px; }
+        .legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.82rem; color: #475569; }
+        .legend-swatch { width: 18px; height: 18px; border-radius: 5px; border: 2px solid; flex-shrink: 0; }
+        .sw-v1   { background: #dbeafe; border-color: #3b82f6; }
+        .sw-v2   { background: #fed7aa; border-color: #f97316; }
+        .sw-self { background: #d1fae5; border-color: #10b981; }
+
+        /* Calendar */
+        .calendar-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 18px; max-width: 1050px; margin: 0 auto 32px; }
+        .month-card { background: #fff; border-radius: 18px; padding: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+        .month-name { font-size: 1rem; font-weight: 700; color: #0f172a; text-align: center; margin-bottom: 12px; }
+        .weekday-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 3px; }
+        .weekday-label { text-align: center; font-size: 0.64rem; font-weight: 600; color: #94a3b8; padding: 3px 0; }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+        .day-cell {
+            aspect-ratio: 1; border-radius: 7px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 0.72rem; font-weight: 500; color: #cbd5e1; background: #f8fafc; cursor: default;
+        }
+        .day-cell.empty { background: transparent; }
+        .day-cell.t-1v1      { background: #dbeafe; border: 2px solid #3b82f6; color: #1d4ed8; font-weight: 700; }
+        .day-cell.t-1v2      { background: #fed7aa; border: 2px solid #f97316; color: #c2410c; font-weight: 700; }
+        .day-cell.t-self     { background: #d1fae5; border: 2px solid #10b981; color: #065f46; font-weight: 700; }
+        .day-cell.t-1v1-1v2  { background: linear-gradient(135deg, #dbeafe 50%, #fed7aa 50%); border: 2px solid #a855f7; color: #6b21a8; font-weight: 700; }
+        .day-cell.t-1v1-self { background: linear-gradient(135deg, #dbeafe 50%, #d1fae5 50%); border: 2px solid #6366f1; color: #3730a3; font-weight: 700; }
+        .day-cell.t-1v2-self { background: linear-gradient(135deg, #fed7aa 50%, #d1fae5 50%); border: 2px solid #f59e0b; color: #78350f; font-weight: 700; }
+        .day-cell.t-all      { background: linear-gradient(135deg, #dbeafe 33%, #fed7aa 33% 66%, #d1fae5 66%); border: 2px solid #7c3aed; color: #4c1d95; font-weight: 700; }
+        .day-cell.today-ring { outline: 2.5px dashed #22c55e; outline-offset: 1px; }
+        .day-num { line-height: 1.2; }
+        .day-hrs { font-size: 0.52rem; opacity: 0.9; line-height: 1; }
+        .month-footer { margin-top: 10px; padding-top: 8px; border-top: 1px solid #f1f5f9; display: flex; justify-content: space-between; font-size: 0.7rem; color: #94a3b8; }
+        .month-footer strong { color: #475569; }
+
+        /* Stats */
+        .section-title { text-align: center; font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 14px; }
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; max-width: 900px; margin: 0 auto 28px; }
+        .stat-box { background: #fff; border-radius: 14px; padding: 16px 10px; text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+        .stat-num  { font-size: 1.9rem; font-weight: 800; line-height: 1; color: #0f172a; }
+        .stat-desc { font-size: 0.7rem; color: #64748b; margin-top: 5px; }
+        .stat-box.c-blue   .stat-num { color: #2563eb; }
+        .stat-box.c-orange .stat-num { color: #ea580c; }
+        .stat-box.c-green  .stat-num { color: #059669; }
+
+        /* Bar chart */
+        .bar-section { max-width: 900px; margin: 0 auto; background: #fff; border-radius: 18px; padding: 22px 24px 18px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+        .bar-chart { display: flex; align-items: flex-end; gap: 12px; height: 110px; border-bottom: 2px solid #f1f5f9; }
+        .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; gap: 3px; }
+        .bar-top-label { font-size: 0.67rem; font-weight: 600; color: #475569; }
+        .bar-fill { width: 70%; max-width: 44px; border-radius: 6px 6px 0 0; background: linear-gradient(180deg, #93c5fd, #3b82f6); min-height: 4px; }
+        .bar-month { font-size: 0.7rem; color: #94a3b8; margin-top: 6px; }
+
+        /* Floating button */
+        #addBtn {
+            position: fixed;
+            bottom: calc(28px + env(safe-area-inset-bottom));
+            right: calc(28px + env(safe-area-inset-right));
+            background: #2563eb; color: #fff;
+            border: none; border-radius: 50px;
+            padding: 14px 24px; font-size: 0.95rem; font-weight: 700;
+            cursor: pointer; box-shadow: 0 4px 20px rgba(37,99,235,0.4);
+            transition: transform 0.15s, box-shadow 0.15s;
+            z-index: 100; display: flex; align-items: center; gap: 8px;
+        }
+        #addBtn:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(37,99,235,0.5); }
+
+        /* Modal */
+        #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 200; backdrop-filter: blur(2px); }
+        #overlay.open { display: block; }
+        #modal {
+            display: none; position: fixed;
+            top: 50%; left: 50%; transform: translate(-50%, -60%);
+            width: min(480px, 92vw);
+            background: #fff; border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            z-index: 300; overflow: hidden;
+            transition: opacity 0.2s, transform 0.2s; opacity: 0;
+        }
+        #modal.open { display: block; opacity: 1; transform: translate(-50%, -50%); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px 16px; border-bottom: 1px solid #f1f5f9; }
+        .modal-header span { font-size: 1.05rem; font-weight: 700; color: #0f172a; }
+        .modal-close { background: #f1f5f9; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 1rem; cursor: pointer; color: #64748b; display: flex; align-items: center; justify-content: center; }
+        .modal-close:hover { background: #e2e8f0; }
+        .modal-body { padding: 20px 24px; }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 7px; }
+        .form-input { width: 100%; padding: 10px 13px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 0.9rem; color: #1e293b; outline: none; transition: border-color 0.15s; font-family: inherit; }
+        .form-input:focus { border-color: #3b82f6; }
+        .type-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .type-btn { padding: 9px 6px; border-radius: 10px; border: 2px solid #e2e8f0; background: #f8fafc; font-size: 0.8rem; font-weight: 600; cursor: pointer; text-align: center; color: #64748b; transition: all 0.15s; line-height: 1.3; }
+        .type-btn.active-v1   { background: #dbeafe; border-color: #3b82f6; color: #1d4ed8; }
+        .type-btn.active-v2   { background: #fed7aa; border-color: #f97316; color: #c2410c; }
+        .type-btn.active-self { background: #d1fae5; border-color: #10b981; color: #065f46; }
+        .hours-group { display: flex; gap: 6px; flex-wrap: wrap; }
+        .hours-btn { flex: 1; min-width: 44px; padding: 8px 4px; border-radius: 8px; border: 2px solid #e2e8f0; background: #f8fafc; font-size: 0.82rem; font-weight: 600; color: #64748b; cursor: pointer; text-align: center; transition: all 0.15s; }
+        .hours-btn.selected { background: #dbeafe; border-color: #3b82f6; color: #1d4ed8; }
+        .submit-btn { width: 100%; padding: 12px; background: #2563eb; color: #fff; border: none; border-radius: 12px; font-size: 0.95rem; font-weight: 700; cursor: pointer; margin-top: 4px; transition: background 0.15s; }
+        .submit-btn:hover { background: #1d4ed8; }
+
+        /* Records list */
+        .records-header { font-size: 0.8rem; font-weight: 600; color: #94a3b8; margin: 20px 0 10px; display: flex; align-items: center; gap: 8px; }
+        .records-header::before, .records-header::after { content: ''; flex: 1; height: 1px; background: #f1f5f9; }
+        .record-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border-radius: 10px; background: #f8fafc; margin-bottom: 6px; font-size: 0.82rem; }
+        .record-info { display: flex; gap: 10px; align-items: center; }
+        .record-tag { padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
+        .tag-v1   { background: #dbeafe; color: #1d4ed8; }
+        .tag-v2   { background: #fed7aa; color: #c2410c; }
+        .tag-self { background: #d1fae5; color: #065f46; }
+        .record-date  { color: #475569; font-weight: 500; }
+        .record-hours { color: #64748b; }
+        .delete-btn { background: none; border: none; cursor: pointer; color: #cbd5e1; font-size: 1rem; padding: 2px 4px; border-radius: 4px; transition: color 0.15s; line-height: 1; }
+        .delete-btn:hover { color: #ef4444; }
+        .empty-records { text-align: center; color: #cbd5e1; font-size: 0.8rem; padding: 12px 0; }
+
+        /* Backup section */
+        .backup-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+        .backup-btn {
+            padding: 11px 8px; border-radius: 10px; border: 1.5px solid;
+            font-size: 0.82rem; font-weight: 600; cursor: pointer;
+            text-align: center; display: block; width: 100%;
+            font-family: inherit; transition: opacity 0.15s;
+        }
+        .backup-btn:hover { opacity: 0.8; }
+        .export-btn { background: #d1fae5; border-color: #10b981; color: #065f46; }
+        .import-btn { background: #f8fafc; border-color: #cbd5e1; color: #475569; }
+        .backup-tip { font-size: 0.7rem; color: #94a3b8; text-align: center; line-height: 1.5; }
+
+        .modal-scroll { max-height: 64vh; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+<!-- Install guide banner (hidden when already in standalone App mode) -->
+<div id="installBanner">
+    <p>
+        <strong>📲 添加到主屏幕，像 App 一样使用</strong>
+        Safari 底部点「分享」→「添加到主屏幕」
+    </p>
+    <button class="banner-close" onclick="dismissBanner()">✕</button>
+</div>
+
+<header>
+    <h1>🎾 网球训练日历</h1>
+    <p>2026年 · 训练频率追踪</p>
+</header>
+
+<div class="legend">
+    <div class="legend-item"><div class="legend-swatch sw-v1"></div><span>1v1 私教课</span></div>
+    <div class="legend-item"><div class="legend-swatch sw-v2"></div><span>1v2 小班课</span></div>
+    <div class="legend-item"><div class="legend-swatch sw-self"></div><span>约球 / 发球机</span></div>
+</div>
+
+<div class="calendar-grid" id="calendarGrid"></div>
+
+<div class="section-title">训练统计</div>
+<div class="stats-row" id="statsRow"></div>
+
+<div class="bar-section">
+    <div class="section-title" style="margin-bottom:18px;">各月训练时长（小时）</div>
+    <div class="bar-chart" id="barChart"></div>
+</div>
+
+<button id="addBtn" onclick="openModal()">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>
+    添加记录
+</button>
+
+<div id="overlay" onclick="closeModal()"></div>
+
+<div id="modal">
+    <div class="modal-header">
+        <span>添加训练记录</span>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-scroll">
+        <div class="modal-body">
+
+            <div class="form-group">
+                <label class="form-label">日期</label>
+                <input type="date" id="inputDate" class="form-input">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">训练类型</label>
+                <div class="type-group">
+                    <div class="type-btn active-v1" id="typeV1"   onclick="selectType('1v1')">1v1<br>私教课</div>
+                    <div class="type-btn"           id="typeV2"   onclick="selectType('1v2')">1v2<br>小班课</div>
+                    <div class="type-btn"           id="typeSelf" onclick="selectType('self')">约球 /<br>发球机</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">时长</label>
+                <div class="hours-group" id="hoursGroup"></div>
+            </div>
+
+            <button class="submit-btn" onclick="handleAdd()">添加到日历</button>
+
+            <!-- Custom records -->
+            <div class="records-header">已手动添加的记录</div>
+            <div id="customList"></div>
+
+            <!-- Backup -->
+            <div class="records-header">数据备份</div>
+            <div class="backup-row">
+                <button class="backup-btn export-btn" onclick="exportData()">↓ 导出备份</button>
+                <label class="backup-btn import-btn">
+                    ↑ 导入备份
+                    <input type="file" accept=".json" onchange="importData(this)" style="display:none">
+                </label>
+            </div>
+            <p class="backup-tip">建议定期「导出备份」→ 存到「文件」App / iCloud Drive</p>
+
+        </div>
+    </div>
+</div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────────────
+const BASE_SESSIONS = [
+    { date: '2026-01-25', type: '1v2', hours: 1 },
+    { date: '2026-01-31', type: '1v2', hours: 1 },
+    { date: '2026-02-08', type: '1v2', hours: 1.5 },
+    { date: '2026-02-08', type: '1v2', hours: 1 },
+    { date: '2026-03-13', type: '1v2', hours: 1 },
+    { date: '2026-03-15', type: '1v2', hours: 1.5 },
+    { date: '2026-03-20', type: '1v2', hours: 1.5 },
+    { date: '2026-03-22', type: '1v1', hours: 1 },
+    { date: '2026-03-25', type: '1v1', hours: 1 },
+    { date: '2026-03-26', type: '1v2', hours: 1 },
+    { date: '2026-03-28', type: '1v2', hours: 1.5 },
+    { date: '2026-04-01', type: '1v2', hours: 1 },
+    { date: '2026-04-03', type: '1v1', hours: 1 },
+    { date: '2026-04-11', type: '1v2', hours: 1.5 },
+    { date: '2026-04-12', type: '1v2', hours: 1.5 },
+    { date: '2026-04-17', type: '1v1', hours: 1 },
+    { date: '2026-04-19', type: '1v2', hours: 1.5 },
+    { date: '2026-04-24', type: '1v2', hours: 1 },
+    { date: '2026-04-25', type: '1v2', hours: 1.5 },
+    { date: '2026-04-26', type: '1v2', hours: 1.5 },
+    { date: '2026-05-01', type: '1v1', hours: 1 },
+    { date: '2026-05-03', type: '1v2', hours: 1.5 },
+    { date: '2026-05-07', type: '1v1', hours: 1 },
+    { date: '2026-05-09', type: '1v1', hours: 1 },
+    { date: '2026-05-10', type: '1v2', hours: 1.5 },
+    { date: '2026-05-16', type: '1v2', hours: 1.5 },
+    { date: '2026-05-17', type: '1v1', hours: 1 },
+    { date: '2026-05-22', type: '1v1', hours: 1 },
+];
+
+const STORAGE_KEY = 'tennis_sessions_v1';
+function loadExtra()    { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; } }
+function saveExtra(arr) { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+function allSessions()  { return [...BASE_SESSIONS, ...loadExtra()]; }
+
+// ── Calendar helpers ──────────────────────────────────────────────────────────
+function daysInMonth(y, m)    { return new Date(y, m, 0).getDate(); }
+function firstDayOffset(y, m) { return (new Date(y, m - 1, 1).getDay() + 6) % 7; }
+function todayStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function buildDateMap(sessions) {
+    const map = {};
+    sessions.forEach(s => {
+        if (!map[s.date]) map[s.date] = { has1v1: false, has1v2: false, hasSelf: false, totalHours: 0 };
+        map[s.date].totalHours += s.hours;
+        if (s.type === '1v1')  map[s.date].has1v1 = true;
+        if (s.type === '1v2')  map[s.date].has1v2 = true;
+        if (s.type === 'self') map[s.date].hasSelf = true;
+    });
+    return map;
+}
+
+function trainingClass({ has1v1: v1, has1v2: v2, hasSelf: s }) {
+    if (v1 && v2 && s) return 't-all';
+    if (v1 && v2)      return 't-1v1-1v2';
+    if (v1 && s)       return 't-1v1-self';
+    if (v2 && s)       return 't-1v2-self';
+    if (v1)            return 't-1v1';
+    if (v2)            return 't-1v2';
+    return 't-self';
+}
+
+function getMonthRange(sessions) {
+    const today = new Date();
+    const allDates = sessions.map(s => new Date(s.date));
+    allDates.push(today);
+    const minD = new Date(Math.min(...allDates));
+    const maxD = new Date(Math.max(...allDates));
+    const result = [];
+    const cur = new Date(minD.getFullYear(), minD.getMonth(), 1);
+    const end = new Date(maxD.getFullYear(), maxD.getMonth(), 1);
+    while (cur <= end) {
+        result.push({ year: cur.getFullYear(), month: cur.getMonth() + 1 });
+        cur.setMonth(cur.getMonth() + 1);
+    }
+    return result;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+const WEEKDAYS = ['一','二','三','四','五','六','日'];
+
+function render() {
+    const sessions  = allSessions();
+    const dateMap   = buildDateMap(sessions);
+    const months    = getMonthRange(sessions);
+    const today     = todayStr();
+    const calGrid   = document.getElementById('calendarGrid');
+    calGrid.innerHTML = '';
+    const monthHoursMap = {};
+
+    months.forEach(({ year, month }) => {
+        const numDays = daysInMonth(year, month);
+        const offset  = firstDayOffset(year, month);
+        const card    = document.createElement('div');
+        card.className = 'month-card';
+        card.innerHTML = `<div class="month-name">${year}年 ${month}月</div>`;
+
+        const wdRow = document.createElement('div');
+        wdRow.className = 'weekday-row';
+        WEEKDAYS.forEach(wd => {
+            const el = document.createElement('div');
+            el.className = 'weekday-label';
+            el.textContent = wd;
+            wdRow.appendChild(el);
+        });
+        card.appendChild(wdRow);
+
+        const grid = document.createElement('div');
+        grid.className = 'days-grid';
+        for (let i = 0; i < offset; i++) {
+            const e = document.createElement('div');
+            e.className = 'day-cell empty';
+            grid.appendChild(e);
+        }
+
+        let mH = 0, mDays = 0;
+        for (let d = 1; d <= numDays; d++) {
+            const ds   = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const info = dateMap[ds];
+            const cell = document.createElement('div');
+            let cls = 'day-cell';
+            if (ds === today) cls += ' today-ring';
+            if (info) {
+                mH += info.totalHours;
+                mDays++;
+                cls += ' ' + trainingClass(info);
+                const types = [];
+                if (info.has1v1)  types.push('1v1');
+                if (info.has1v2)  types.push('1v2');
+                if (info.hasSelf) types.push('约球/发球机');
+                cell.title = `${ds}  ${types.join('+')}  共${info.totalHours}h`;
+                cell.innerHTML = `<span class="day-num">${d}</span><span class="day-hrs">${info.totalHours}h</span>`;
+            } else {
+                cell.innerHTML = `<span class="day-num">${d}</span>`;
+            }
+            cell.className = cls;
+            grid.appendChild(cell);
+        }
+        card.appendChild(grid);
+
+        const footer = document.createElement('div');
+        footer.className = 'month-footer';
+        footer.innerHTML = mDays > 0
+            ? `<span>训练 <strong>${mDays}</strong> 天</span><span>共 <strong>${mH}h</strong></span>`
+            : `<span style="color:#e2e8f0">暂无记录</span><span></span>`;
+        card.appendChild(footer);
+        calGrid.appendChild(card);
+        monthHoursMap[`${year}-${month}`] = mH;
+    });
+
+    // Stats
+    const totalHours = sessions.reduce((a, s) => a + s.hours, 0);
+    const hours1v1   = sessions.filter(s => s.type === '1v1').reduce((a, s)  => a + s.hours, 0);
+    const hours1v2   = sessions.filter(s => s.type === '1v2').reduce((a, s)  => a + s.hours, 0);
+    const hoursSelf  = sessions.filter(s => s.type === 'self').reduce((a, s) => a + s.hours, 0);
+    const trainDays  = Object.keys(dateMap).length;
+    const firstDate  = new Date(BASE_SESSIONS[0].date);
+    const daySpan    = Math.max(1, Math.round((new Date() - firstDate) / 86400000));
+    const weeklyAvg  = (totalHours / (daySpan / 7)).toFixed(1);
+
+    const statsRow = document.getElementById('statsRow');
+    statsRow.innerHTML = '';
+    [
+        { num: trainDays,        desc: '训练天数',    cls: '' },
+        { num: totalHours + 'h', desc: '总时长',      cls: 'c-green' },
+        { num: hours1v1 + 'h',   desc: '1v1 课时',    cls: 'c-blue' },
+        { num: hours1v2 + 'h',   desc: '1v2 课时',    cls: 'c-orange' },
+        { num: hoursSelf + 'h',  desc: '约球/发球机', cls: 'c-green' },
+        { num: weeklyAvg + 'h',  desc: '周均时长',    cls: '' },
+    ].forEach(s => {
+        const box = document.createElement('div');
+        box.className = `stat-box ${s.cls}`;
+        box.innerHTML = `<div class="stat-num">${s.num}</div><div class="stat-desc">${s.desc}</div>`;
+        statsRow.appendChild(box);
+    });
+
+    // Bar chart
+    const barChart = document.getElementById('barChart');
+    barChart.innerHTML = '';
+    const hVals = months.map(({ year, month }) => monthHoursMap[`${year}-${month}`] || 0);
+    const maxH  = Math.max(...hVals, 0.1);
+    months.forEach(({ year, month }, i) => {
+        const h   = hVals[i];
+        const px  = Math.round(h / maxH * 88);
+        const lbl = year === new Date().getFullYear() ? `${month}月` : `${year}/${month}`;
+        const col = document.createElement('div');
+        col.className = 'bar-col';
+        col.innerHTML = `
+            <span class="bar-top-label">${h > 0 ? h + 'h' : ''}</span>
+            <div class="bar-fill" style="height:${Math.max(px, h > 0 ? 4 : 0)}px;"></div>
+            <span class="bar-month">${lbl}</span>
+        `;
+        barChart.appendChild(col);
+    });
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+let selectedType  = '1v1';
+let selectedHours = 1;
+const HOUR_OPTIONS = [0.5, 1, 1.5, 2, 2.5, 3];
+
+function buildHoursGroup() {
+    const grp = document.getElementById('hoursGroup');
+    grp.innerHTML = '';
+    HOUR_OPTIONS.forEach(h => {
+        const btn = document.createElement('div');
+        btn.className = 'hours-btn' + (h === selectedHours ? ' selected' : '');
+        btn.textContent = h + 'h';
+        btn.onclick = () => { selectedHours = h; buildHoursGroup(); };
+        grp.appendChild(btn);
+    });
+}
+
+function selectType(t) {
+    selectedType = t;
+    document.getElementById('typeV1').className   = 'type-btn' + (t === '1v1'  ? ' active-v1'   : '');
+    document.getElementById('typeV2').className   = 'type-btn' + (t === '1v2'  ? ' active-v2'   : '');
+    document.getElementById('typeSelf').className = 'type-btn' + (t === 'self' ? ' active-self' : '');
+}
+
+function openModal() {
+    document.getElementById('inputDate').value = todayStr();
+    buildHoursGroup();
+    renderCustomList();
+    document.getElementById('overlay').classList.add('open');
+    requestAnimationFrame(() => document.getElementById('modal').classList.add('open'));
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('open');
+    document.getElementById('overlay').classList.remove('open');
+}
+
+function handleAdd() {
+    const dateVal = document.getElementById('inputDate').value;
+    if (!dateVal) { alert('请选择日期'); return; }
+    const extra = loadExtra();
+    extra.push({ date: dateVal, type: selectedType, hours: selectedHours });
+    saveExtra(extra);
+    render();
+    renderCustomList();
+    document.getElementById('inputDate').value = todayStr();
+}
+
+function deleteExtra(index) {
+    const extra = loadExtra();
+    extra.splice(index, 1);
+    saveExtra(extra);
+    render();
+    renderCustomList();
+}
+
+const TYPE_META = {
+    '1v1':  { label: '1v1',      tagCls: 'tag-v1' },
+    '1v2':  { label: '1v2',      tagCls: 'tag-v2' },
+    'self': { label: '约球/发球机', tagCls: 'tag-self' },
+};
+
+function renderCustomList() {
+    const extra = loadExtra();
+    const list  = document.getElementById('customList');
+    if (extra.length === 0) {
+        list.innerHTML = '<div class="empty-records">还没有手动添加的记录</div>';
+        return;
+    }
+    list.innerHTML = '';
+    [...extra].reverse().forEach((s, ri) => {
+        const realIdx = extra.length - 1 - ri;
+        const meta    = TYPE_META[s.type] || TYPE_META['self'];
+        const item    = document.createElement('div');
+        item.className = 'record-item';
+        item.innerHTML = `
+            <div class="record-info">
+                <span class="record-tag ${meta.tagCls}">${meta.label}</span>
+                <span class="record-date">${s.date}</span>
+                <span class="record-hours">${s.hours}h</span>
+            </div>
+            <button class="delete-btn" onclick="deleteExtra(${realIdx})" title="删除">✕</button>
+        `;
+        list.appendChild(item);
+    });
+}
+
+// ── Backup ────────────────────────────────────────────────────────────────────
+function exportData() {
+    const extra = loadExtra();
+    if (extra.length === 0) {
+        alert('目前没有手动记录需要备份\n（历史记录已内置在文件里，无需备份）');
+        return;
+    }
+    const blob = new Blob([JSON.stringify(extra, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `tennis_backup_${todayStr()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function importData(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const data  = JSON.parse(e.target.result);
+            const valid = Array.isArray(data) && data.every(s => s.date && s.type && typeof s.hours === 'number');
+            if (!valid) throw new Error();
+            if (!confirm(`找到 ${data.length} 条备份记录\n导入后将覆盖现有手动记录，继续？`)) return;
+            saveExtra(data);
+            render();
+            renderCustomList();
+            alert(`已成功导入 ${data.length} 条记录`);
+        } catch {
+            alert('文件格式有误，请选择正确的备份文件');
+        }
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+// ── App icon (canvas) ─────────────────────────────────────────────────────────
+function generateIcon() {
+    try {
+        const c = document.createElement('canvas');
+        c.width = c.height = 180;
+        const ctx = c.getContext('2d');
+        const r   = 40;
+        ctx.beginPath();
+        ctx.moveTo(r, 0); ctx.lineTo(180 - r, 0);
+        ctx.arcTo(180, 0, 180, r, r); ctx.lineTo(180, 180 - r);
+        ctx.arcTo(180, 180, 180 - r, 180, r); ctx.lineTo(r, 180);
+        ctx.arcTo(0, 180, 0, 180 - r, r); ctx.lineTo(0, r);
+        ctx.arcTo(0, 0, r, 0, r);
+        ctx.closePath();
+        ctx.fillStyle = '#1e40af';
+        ctx.fill();
+        ctx.font = '110px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🎾', 90, 94);
+        const link = document.createElement('link');
+        link.rel   = 'apple-touch-icon';
+        link.href  = c.toDataURL('image/png');
+        document.head.appendChild(link);
+    } catch (_) {}
+}
+
+// ── Install banner ────────────────────────────────────────────────────────────
+function dismissBanner() {
+    document.getElementById('installBanner').classList.remove('visible');
+    localStorage.setItem('banner_dismissed', '1');
+}
+
+function initBanner() {
+    const isStandalone = window.navigator.standalone === true;
+    const dismissed    = localStorage.getItem('banner_dismissed');
+    if (!isStandalone && !dismissed) {
+        document.getElementById('installBanner').classList.add('visible');
+    }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+generateIcon();
+initBanner();
+buildHoursGroup();
+render();
+</script>
+</body>
+</html>
